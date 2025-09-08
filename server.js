@@ -31,7 +31,13 @@ app.post('/api/chat', async (req, res) => {
             }
         );
 
-        const aiResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || "No reply from AI";
+        console.log("Gemini Raw Response:", JSON.stringify(response.data, null, 2));
+
+        // Universal parsing (handle multiple formats)
+        let aiResponse =
+            response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+            response.data?.candidates?.[0]?.output_text ||
+            "No reply from AI";
 
         res.json({ response: aiResponse });
     } catch (error) {
