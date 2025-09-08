@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const admin = require('firebase-admin');
 require('dotenv').config();
 
 const app = express();
@@ -10,8 +11,39 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Chat endpoint
-app.post('/api/chat', async (req, res) => {
+// --- Initialize Firebase Admin ---
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        })
+    });
+}
+
+// Middleware to verify Firebase ID Token
+async function verifyFirebaseToken(req, res, next) {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        req.user = decodedToken; // User info
+        next();
+    } catch (error) {
+        console.error("Auth Error:", error);
+        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+}
+
+// Chat endpoint (Protected)
+app.post('/api/chat', verifyFirebaseToken, async (req, res) => {
     try {
         const userMessage = req.body.message;
 
@@ -19,7 +51,7 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // Call Gemini API (latest model: gemini-2.0-flash)
+        // Call Gemini API
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
@@ -33,7 +65,6 @@ app.post('/api/chat', async (req, res) => {
 
         console.log("Gemini Raw Response:", JSON.stringify(response.data, null, 2));
 
-        // Extract AI response safely
         const aiResponse =
             response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
             "No reply from AI";
