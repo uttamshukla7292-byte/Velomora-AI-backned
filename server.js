@@ -19,9 +19,9 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // Call Gemini API
+        // Call Gemini API (latest model: gemini-2.0-flash)
         const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
                 contents: [
                     {
@@ -33,10 +33,9 @@ app.post('/api/chat', async (req, res) => {
 
         console.log("Gemini Raw Response:", JSON.stringify(response.data, null, 2));
 
-        // Universal parsing (handle multiple formats)
-        let aiResponse =
+        // Extract AI response safely
+        const aiResponse =
             response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-            response.data?.candidates?.[0]?.output_text ||
             "No reply from AI";
 
         res.json({ response: aiResponse });
