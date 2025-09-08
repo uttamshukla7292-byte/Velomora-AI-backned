@@ -11,7 +11,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// --- Initialize Firebase Admin with separate env variables ---
+// --- Initialize Firebase Admin (Fields from separate env variables) ---
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert({
@@ -23,8 +23,8 @@ if (!admin.apps.length) {
             clientId: process.env.FIREBASE_CLIENT_ID,
             authUri: process.env.FIREBASE_AUTH_URI,
             tokenUri: process.env.FIREBASE_TOKEN_URI,
-            authProviderX509CertUrl: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
-            clientX509CertUrl: process.env.FIREBASE_CLIENT_CERT_URL,
+            authProviderX509CertUrl: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+            clientX509CertUrl: process.env.FIREBASE_CLIENT_X509_CERT_URL,
             universeDomain: process.env.FIREBASE_UNIVERSE_DOMAIN
         })
     });
@@ -33,16 +33,14 @@ if (!admin.apps.length) {
 // Middleware to verify Firebase ID Token
 async function verifyFirebaseToken(req, res, next) {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
     }
-
     const idToken = authHeader.split('Bearer ')[1];
 
     try {
         const decodedToken = await admin.auth().verifyIdToken(idToken);
-        req.user = decodedToken; // User info
+        req.user = decodedToken; 
         next();
     } catch (error) {
         console.error("Auth Error:", error);
@@ -54,24 +52,13 @@ async function verifyFirebaseToken(req, res, next) {
 app.post('/api/chat', verifyFirebaseToken, async (req, res) => {
     try {
         const userMessage = req.body.message;
+        if (!userMessage) return res.status(400).json({ error: 'Message is required' });
 
-        if (!userMessage) {
-            return res.status(400).json({ error: 'Message is required' });
-        }
-
-        // Call Gemini API
+        // Gemini API call
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-            {
-                contents: [
-                    {
-                        parts: [{ text: userMessage }]
-                    }
-                ]
-            }
+            { contents: [{ parts: [{ text: userMessage }] }] }
         );
-
-        console.log("Gemini Raw Response:", JSON.stringify(response.data, null, 2));
 
         const aiResponse =
             response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
@@ -84,7 +71,17 @@ app.post('/api/chat', verifyFirebaseToken, async (req, res) => {
     }
 });
 
-// Start server
-app.listen(port, () => {
-    console.log(`✅ Velomora backend running on port ${port}`);
+// Token verification endpoint
+app.post('/api/verify-token', async (req, res) => {
+    const idToken = req.body.token;
+    if (!idToken) return res.status(400).json({ error: "Token required" });
+
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        res.json({ valid: true, user: decodedToken });
+    } catch (error) {
+        res.status(401).json({ valid: false, error: error.message });
+    }
 });
+
+app.listen(port, () => console.log(`✅ Backend running on port ${port}`));
