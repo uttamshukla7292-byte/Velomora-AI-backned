@@ -15,13 +15,24 @@ app.post('/api/chat', async (req, res) => {
     try {
         const userMessage = req.body.message;
 
+        // Force Gemini to reply in markdown format
+        const prompt = `
+Reply strictly in **Markdown format**:
+- Use headings (#, ##, ###)
+- Use numbered lists for steps
+- Use bullet points for options
+- Use **bold text** for highlighting
+
+Now answer this: ${userMessage}
+        `;
+
         // Call the Google Gemini API (using gemini-2.0-flash model)
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
             {
                 contents: [
                     {
-                        parts: [{ text: userMessage }]
+                        parts: [{ text: prompt }]
                     }
                 ]
             },
